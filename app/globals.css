@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Pixel feel via a chunky monospace stack — no network webfont needed. */
+  --font-pixel: ui-monospace, "DejaVu Sans Mono", "Courier New", monospace;
+}
+
+html,
+body {
+  background-color: #05060f;
+  color: #d7e3ff;
+  font-family: var(--font-pixel);
+  margin: 0;
+  min-height: 100%;
+  -webkit-font-smoothing: none;
+  text-rendering: optimizeSpeed;
+}
+
+/* Starfield: layered radial-gradient "stars" over the black void. */
+.starfield {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: #05060f;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, #ffffff 50%, transparent 50%),
+    radial-gradient(1px 1px at 70% 60%, #9bdcff 50%, transparent 50%),
+    radial-gradient(1px 1px at 40% 80%, #ffffff 50%, transparent 50%),
+    radial-gradient(2px 2px at 85% 20%, #ff9bf0 50%, transparent 50%),
+    radial-gradient(1px 1px at 10% 70%, #fff6a8 50%, transparent 50%),
+    radial-gradient(1px 1px at 55% 15%, #ffffff 50%, transparent 50%),
+    radial-gradient(1px 1px at 90% 85%, #9bdcff 50%, transparent 50%);
+  background-size: 300px 300px, 250px 250px, 200px 200px, 400px 400px,
+    220px 220px, 180px 180px, 260px 260px;
+  animation: drift 120s linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes drift {
+  from {
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  to {
+    background-position:
+      300px 600px, -250px 500px, 200px -400px, 400px 800px, -220px 440px,
+      180px -360px, -260px 520px;
+  }
+}
+
+.pixel-border {
+  border-width: 2px;
+  border-style: solid;
+  image-rendering: pixelated;
+}
+
+.scanlines::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.18) 3px
+  );
+  mix-blend-mode: multiply;
+}
+
+@keyframes roll-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.dice-rolling {
+  animation: roll-spin 0.5s ease-in-out;
+}
+
+.text-shadow-neon {
+  text-shadow: 0 0 6px currentColor;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1b2148;
+  border-radius: 4px;
+}
