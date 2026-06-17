@@ -29,9 +29,22 @@ export default function RoomPage() {
   if (room.status === "error") {
     return (
       <Centered text={`接続エラー: ${room.error ?? "不明"}`}>
-        <Link href="/" className="text-neon-cyan underline">
-          ホームに戻る
-        </Link>
+        <p className="max-w-xs text-[10px] leading-relaxed text-slate-500">
+          {room.online
+            ? "Supabase に接続できませんでした。schema.sql の実行、環境変数 (URL / publishable key)、プロジェクトが一時停止していないかを確認してください。"
+            : "環境変数が読み込まれていないため、ローカルモードです。"}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="text-neon-lime underline"
+          >
+            再試行
+          </button>
+          <Link href="/" className="text-neon-cyan underline">
+            ホームに戻る
+          </Link>
+        </div>
       </Centered>
     );
   }

@@ -14,6 +14,29 @@ import { getSupabase } from "@/lib/supabaseClient";
 
 const MAX_RETRIES = 6;
 const CPU_DELAY_MS = 750;
+/** If the initial connection has not resolved by this point, surface an error
+ * instead of leaving the user stuck on an infinite "接続中" spinner. */
+const CONNECT_TIMEOUT_MS = 12000;
+
+/** Reject if a Supabase call hangs (paused project, network stall, CORS). */
+function withTimeout<T>(promise: PromiseLike<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} がタイムアウトしました (${CONNECT_TIMEOUT_MS / 1000}秒)`)),
+      CONNECT_TIMEOUT_MS,
+    );
+    Promise.resolve(promise).then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
 
 export type RoomStatus = "connecting" | "ready" | "error";
 
@@ -129,12 +152,23 @@ export function useRoom(code: string): UseRoom {
       }
 
       try {
+        console.info("[stellar-life] online mode: connecting to room", code);
         // Find or create the room row for this code.
-        const existing = await supabase
-          .from("rooms")
-          .select("id,version,state")
-          .eq("code", code)
-          .maybeSingle();
+        const existing = await withTimeout(
+          supabase
+            .from("rooms")
+            .select("id,version,state")
+            .eq("code", code)
+            .maybeSingle(),
+          "ルーム検索",
+        );
+        // A real error here (auth, missing table, RLS) must surface — do not
+        // silently fall through to an insert that will fail the same way.
+        if (existing.error && existing.error.code !== "PGRST116") {
+          throw new Error(
+            `ルーム検索に失敗: ${existing.error.message} (テーブル作成と環境変数を確認してください)`,
+          );
+        }
 
         let roomId: string;
         if (existing.data) {
@@ -143,26 +177,36 @@ export function useRoom(code: string): UseRoom {
           stateRef.current = existing.data.state as RoomState;
         } else {
           const initial = createRoomState(clientId, `${code}-${uuid().slice(0, 8)}`);
-          const inserted = await supabase
-            .from("rooms")
-            .insert({
-              code,
-              host_client_id: clientId,
-              status: initial.phase,
-              seed: initial.seed,
-              state: initial,
-              version: 1,
-            })
-            .select("id,version,state")
-            .single();
-          if (inserted.error) {
-            // Likely a race: another client created it first. Re-read.
-            const retry = await supabase
+          const inserted = await withTimeout(
+            supabase
               .from("rooms")
+              .insert({
+                code,
+                host_client_id: clientId,
+                status: initial.phase,
+                seed: initial.seed,
+                state: initial,
+                version: 1,
+              })
               .select("id,version,state")
-              .eq("code", code)
-              .single();
-            if (retry.error) throw retry.error;
+              .single(),
+            "ルーム作成",
+          );
+          if (inserted.error) {
+            // Likely a race (unique code) — another client created it first.
+            const retry = await withTimeout(
+              supabase
+                .from("rooms")
+                .select("id,version,state")
+                .eq("code", code)
+                .single(),
+              "ルーム再取得",
+            );
+            if (retry.error) {
+              throw new Error(
+                `ルーム作成/再取得に失敗: ${retry.error.message}`,
+              );
+            }
             roomId = retry.data.id as string;
             versionRef.current = retry.data.version as number;
             stateRef.current = retry.data.state as RoomState;
@@ -198,6 +242,7 @@ export function useRoom(code: string): UseRoom {
           )
           .subscribe();
       } catch (e) {
+        console.error("[stellar-life] room connection failed", e);
         if (!cancelled) {
           setError(e instanceof Error ? e.message : String(e));
           setStatus("error");
