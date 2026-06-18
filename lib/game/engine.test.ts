@@ -123,6 +123,17 @@ describe("full game", () => {
   });
 });
 
+describe("event flash & diary tagging", () => {
+  it("tags player-specific log entries and raises event flashes", () => {
+    const end = playToEnd(newGame("flash-seed"));
+    // Diaries are built from player-tagged log entries.
+    const tagged = end.log.filter((l) => l.playerId);
+    expect(tagged.length).toBeGreaterThan(0);
+    // At least one resolved event was surfaced as a flash during the game.
+    expect(end.eventSeq).toBeGreaterThan(0);
+  });
+});
+
 describe("cpu helpers", () => {
   it("identifies the active player and cpu turns", () => {
     const g = newGame();

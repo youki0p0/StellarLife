@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { playSfx } from "@/lib/sfx";
 import { Button } from "./Button";
 
 const FACES = ["1", "2", "3", "4", "5", "6"];
@@ -35,7 +36,15 @@ export function Dice({
       >
         {value === null ? "·" : FACES[value - 1]}
       </div>
-      <Button variant="lime" size="md" onClick={onRoll} disabled={!canRoll}>
+      <Button
+        variant="lime"
+        size="md"
+        onClick={() => {
+          playSfx("roll");
+          onRoll();
+        }}
+        disabled={!canRoll}
+      >
         {label}
       </Button>
     </div>

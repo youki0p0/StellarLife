@@ -95,6 +95,22 @@ export interface LogEntry {
   text: string;
   /** Optional accent colour key for the log line. */
   tone?: "good" | "bad" | "info" | "global";
+  /** The player this entry is about, if any (used to build per-player diaries). */
+  playerId?: string;
+}
+
+/** The most recently resolved event, surfaced as a transient popup in the UI. */
+export interface EventFlash {
+  /** Monotonic id so the UI can detect a brand-new flash. */
+  seq: number;
+  scope: EventScope;
+  playerId: string | null;
+  playerName: string;
+  title: string;
+  description: string;
+  delta: StatDelta;
+  tone: LogEntry["tone"];
+  achievement?: string;
 }
 
 /** A decision the active player must resolve before the turn can advance. */
@@ -121,6 +137,10 @@ export interface GameState {
   pending: PendingChoice | null;
   /** Result of the last dice roll, kept for UI animation. */
   lastRoll: { playerId: string; value: number } | null;
+  /** Most recent resolved event, shown as a transient popup. */
+  lastEvent: EventFlash | null;
+  /** Monotonic counter backing EventFlash.seq. */
+  eventSeq: number;
   winnerId: string | null;
 }
 
