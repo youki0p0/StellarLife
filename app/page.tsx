@@ -35,6 +35,11 @@ export default function Home() {
     router.push(`/room/${c}`);
   }
 
+  function solo() {
+    commitName();
+    router.push(`/room/${makeRoomCode()}?solo=1`);
+  }
+
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-8 px-5 py-10">
       <header className="text-center">
@@ -67,15 +72,19 @@ export default function Home() {
           新しいルームを作る
         </Button>
 
+        <Button variant="lime" size="lg" fullWidth onClick={solo}>
+          ひとりで遊ぶ
+        </Button>
+
         <div className="flex items-center gap-2">
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={6}
             placeholder="ルームコード"
-            className="flex-1 rounded border-2 border-grid bg-void px-3 py-2 text-sm tracking-widest text-slate-100 outline-none focus:border-neon-magenta"
+            className="min-w-0 flex-1 rounded border-2 border-grid bg-void px-3 py-2 text-sm tracking-widest text-slate-100 outline-none focus:border-neon-magenta"
           />
-          <Button variant="magenta" size="md" onClick={join}>
+          <Button variant="magenta" size="md" className="shrink-0" onClick={join}>
             参加
           </Button>
         </div>

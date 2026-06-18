@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Board } from "@/components/Board";
 import { Button, buttonClass } from "@/components/Button";
 import { CoopBar } from "@/components/CoopBar";
@@ -27,6 +27,23 @@ export default function RoomPage() {
   const params = useParams<{ code: string }>();
   const code = (params.code ?? "").toString().toUpperCase();
   const room = useRoom(code);
+  const searchParams = useSearchParams();
+  const solo = searchParams.get("solo") === "1";
+
+  // Solo quick-start: ready up and start a 1-player game automatically.
+  const { state: roomState, clientId, dispatch } = room;
+  useEffect(() => {
+    if (!solo || !roomState || roomState.phase !== "lobby") return;
+    const mySeat = roomState.seats.find((s) => s.clientId === clientId);
+    if (!mySeat) return; // wait for auto-join
+    if (!mySeat.ready) {
+      dispatch({ type: "TOGGLE_READY", seatId: mySeat.id });
+      return;
+    }
+    if (roomState.hostClientId === clientId) {
+      dispatch({ type: "START", byClientId: clientId });
+    }
+  }, [solo, roomState, clientId, dispatch]);
 
   if (room.status === "connecting" || !room.state) {
     return <Centered text="接続中…" />;
