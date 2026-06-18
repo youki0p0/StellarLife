@@ -46,3 +46,11 @@ alter table public.rooms enable row level security;
 drop policy if exists "rooms_all" on public.rooms;
 create policy "rooms_all" on public.rooms
   for all using (true) with check (true);
+
+-- Table privileges for the API roles. Without these, the publishable (anon)
+-- key is authenticated but PostgREST returns 401 "permission denied for table
+-- rooms" — which is the most common cause of a 401 on /rest/v1/rooms even when
+-- RLS allows the row. Supabase usually grants these automatically, but granting
+-- explicitly makes the schema self-contained when run via the SQL editor.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.rooms to anon, authenticated;
