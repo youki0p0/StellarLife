@@ -5,6 +5,7 @@ import { pick, rollInt, seedFromString } from "./rng";
 import { winnerId } from "./score";
 import { applyDelta, describeDelta, initialStats } from "./stats";
 import type {
+  EventFlash,
   GameEventCard,
   GameState,
   LogEntry,
@@ -73,6 +74,8 @@ export function createGame(seats: SeatInput[], seed: string): GameState {
     logSeq: 1,
     pending: null,
     lastRoll: null,
+    lastEvent: null,
+    eventSeq: 0,
     winnerId: null,
   };
 }
@@ -109,6 +112,8 @@ interface Draft {
   log: LogEntry[];
   rng: number;
   logSeq: number;
+  lastEvent: GameState["lastEvent"];
+  eventSeq: number;
 }
 
 function startDraft(state: GameState): Draft {
@@ -118,6 +123,8 @@ function startDraft(state: GameState): Draft {
     log: [...state.log],
     rng: state.rng,
     logSeq: state.logSeq,
+    lastEvent: state.lastEvent,
+    eventSeq: state.eventSeq,
   };
 }
 
@@ -132,11 +139,23 @@ function cloneePlayers(
   return out;
 }
 
-function addLog(draft: Draft, turn: number, text: string, tone?: LogEntry["tone"]) {
-  draft.log.push({ id: draft.logSeq, turn, text, tone });
+function addLog(
+  draft: Draft,
+  turn: number,
+  text: string,
+  tone?: LogEntry["tone"],
+  playerId?: string,
+) {
+  draft.log.push({ id: draft.logSeq, turn, text, tone, playerId });
   draft.logSeq += 1;
   // Keep the feed bounded so the persisted state stays small.
-  if (draft.log.length > 60) draft.log = draft.log.slice(-60);
+  if (draft.log.length > 80) draft.log = draft.log.slice(-80);
+}
+
+/** Record a transient event popup for the UI to surface. */
+function flashEvent(draft: Draft, flash: Omit<EventFlash, "seq">) {
+  draft.eventSeq += 1;
+  draft.lastEvent = { ...flash, seq: draft.eventSeq };
 }
 
 function award(draft: Draft, player: PlayerState, achievementId?: string) {
@@ -148,6 +167,7 @@ function award(draft: Draft, player: PlayerState, achievementId?: string) {
     draft.state.turnCount,
     `${player.name} が人生目標を達成: ${achievementLabel(achievementId)}`,
     "good",
+    player.id,
   );
 }
 
@@ -158,7 +178,13 @@ function handleRoll(state: GameState): GameState {
 
   const [rngAfterRoll, roll] = rollInt(draft.rng, 1, 6);
   draft.rng = rngAfterRoll;
-  addLog(draft, state.turnCount, `${player.name} が ${roll} を出した。`, "info");
+  addLog(
+    draft,
+    state.turnCount,
+    `${player.name} が ${roll} を出した。`,
+    "info",
+    player.id,
+  );
 
   // Move forward, honouring fuel gates between segments.
   const moved = move(player, roll, draft);
@@ -171,6 +197,7 @@ function handleRoll(state: GameState): GameState {
       state.turnCount,
       `${player.name} は燃料不足で「${moved.blockedGate.label}」の手前で待機。補給した (燃料+${REFUEL_ON_BLOCK})。`,
       "bad",
+      player.id,
     );
   }
 
@@ -203,7 +230,18 @@ function handleChoose(state: GameState, choiceId: string): GameState {
       state.turnCount,
       `${player.name}: ${choice.note} (${describeDelta(choice.delta) || "効果なし"})`,
       deltaTone(choice.delta),
+      player.id,
     );
+    flashEvent(draft, {
+      scope: "personal",
+      playerId: player.id,
+      playerName: player.name,
+      title: pending.card.title,
+      description: choice.note,
+      delta: choice.delta,
+      tone: deltaTone(choice.delta),
+      achievement: choice.achievement,
+    });
   }
 
   return advanceTurn(commitState(state, draft, { pending: null }));
@@ -231,6 +269,7 @@ function move(player: PlayerState, roll: number, draft: Draft): MoveResult {
         draft.state.turnCount,
         `${player.name} は「${tile.label}」を突破! (燃料-${cost})`,
         "good",
+        player.id,
       );
     }
     pos = next;
@@ -260,7 +299,20 @@ function resolveLanding(
         `${player.name}: ${tile.note ?? tile.label}` +
           (tile.delta ? ` (${describeDelta(tile.delta)})` : ""),
         tile.kind === "goal" ? "good" : deltaTone(tile.delta ?? {}),
+        player.id,
       );
+      if (tile.kind === "mission" || tile.kind === "goal") {
+        flashEvent(draft, {
+          scope: "personal",
+          playerId: player.id,
+          playerName: player.name,
+          title: tile.label,
+          description: tile.note ?? tile.label,
+          delta: tile.delta ?? {},
+          tone: "good",
+          achievement: tile.achievement,
+        });
+      }
       if (tile.kind === "goal") {
         player.finished = true;
         addLog(
@@ -268,6 +320,7 @@ function resolveLanding(
           draft.state.turnCount,
           `${player.name} がフロンティアに到達! 伝説の航海を成し遂げた。`,
           "global",
+          player.id,
         );
       }
       return null;
@@ -299,7 +352,17 @@ function drawEvent(
         draft.state.turnCount,
         `${player.name} はリスクが高く小事故に見舞われた (${describeDelta(RISK_ACCIDENT_DELTA)})。`,
         "bad",
+        player.id,
       );
+      flashEvent(draft, {
+        scope: "personal",
+        playerId: player.id,
+        playerName: player.name,
+        title: "小事故発生",
+        description: "リスクが高く、宇宙開発のトラブルに見舞われた。",
+        delta: RISK_ACCIDENT_DELTA,
+        tone: "bad",
+      });
     }
   }
 
@@ -309,6 +372,7 @@ function drawEvent(
       draft.state.turnCount,
       `${player.name} にイベント発生: ${card.title}`,
       "info",
+      player.id,
     );
     return { playerId: player.id, card };
   }
@@ -320,7 +384,18 @@ function drawEvent(
     draft.state.turnCount,
     `${player.name}: ${card.title} — ${describeDelta(card.delta ?? {}) || "効果なし"}`,
     deltaTone(card.delta ?? {}),
+    player.id,
   );
+  flashEvent(draft, {
+    scope: "personal",
+    playerId: player.id,
+    playerName: player.name,
+    title: card.title,
+    description: card.description,
+    delta: card.delta ?? {},
+    tone: deltaTone(card.delta ?? {}),
+    achievement: card.achievement,
+  });
   return null;
 }
 
@@ -367,6 +442,15 @@ function applyGlobalEvent(state: GameState): GameState {
     if (p.finished) continue;
     if (card.delta) p.stats = applyDelta(p.stats, card.delta);
   }
+  flashEvent(draft, {
+    scope: "global",
+    playerId: null,
+    playerName: "全体",
+    title: card.title,
+    description: card.description,
+    delta: card.delta ?? {},
+    tone: "global",
+  });
   return commitState(state, draft, {});
 }
 
@@ -403,6 +487,8 @@ function commit(
     log: draft.log,
     logSeq: draft.logSeq,
     rng: draft.rng,
+    lastEvent: draft.lastEvent,
+    eventSeq: draft.eventSeq,
     ...patch,
   };
 }

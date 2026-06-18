@@ -1,10 +1,13 @@
+/* DotGothic16: a Japanese-capable pixel/dot font (loaded at runtime in the
+   browser, so it adds no build-time dependency). Falls back to monospace. */
+@import url("https://fonts.googleapis.com/css2?family=DotGothic16&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Pixel feel via a chunky monospace stack — no network webfont needed. */
-  --font-pixel: ui-monospace, "DejaVu Sans Mono", "Courier New", monospace;
+  --font-pixel: "DotGothic16", ui-monospace, "DejaVu Sans Mono", monospace;
 }
 
 html,
@@ -69,6 +72,21 @@ body {
   mix-blend-mode: multiply;
 }
 
+@keyframes event-pop {
+  0% { transform: translateY(-12px) scale(0.96); opacity: 0; }
+  12% { transform: translateY(0) scale(1); opacity: 1; }
+  88% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-8px) scale(0.98); opacity: 0; }
+}
+.event-pop {
+  animation: event-pop 2.8s ease-in-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .event-pop {
+    animation: none;
+  }
+}
+
 @keyframes roll-spin {
   0% { transform: rotate(0deg) scale(1); }
   50% { transform: rotate(180deg) scale(1.15); }
@@ -89,4 +107,17 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #1b2148;
   border-radius: 4px;
+}
+
+/* Respect users who prefer less motion: freeze the starfield and dice spin. */
+@media (prefers-reduced-motion: reduce) {
+  .starfield {
+    animation: none;
+  }
+  .dice-rolling {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
 }

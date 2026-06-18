@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { BOARD, SEGMENTS } from "@/lib/game/board";
-import type { PlayerState } from "@/lib/game/types";
+import type { PlayerState, TileKind } from "@/lib/game/types";
+import { Rocket, Saturn, Star } from "./sprites";
 import { ACCENT_BG, ACCENT_BORDER, ACCENT_TEXT, accent } from "./ui";
 
 // A winding, board-game style path (boustrophedon snake) so the journey reads
@@ -19,6 +20,14 @@ const KIND_GLYPH: Record<string, string> = {
   gate: "↑",
   goal: "✦",
 };
+
+/** Milestone tiles get a pixel sprite instead of a glyph. */
+function TileMark({ kind }: { kind: TileKind }) {
+  if (kind === "gate") return <Rocket size={14} />;
+  if (kind === "goal") return <Saturn size={16} />;
+  if (kind === "mission") return <Star size={12} color="#9dff5a" />;
+  return null;
+}
 
 function gridPos(index: number): { row: number; col: number } {
   const row = Math.floor(index / COLS);
@@ -84,9 +93,15 @@ export function Board({
               }`}
             >
               <div className="flex items-start justify-between leading-none">
-                <span className={`text-sm ${ACCENT_TEXT[a]}`}>
-                  {KIND_GLYPH[tile.kind] ?? "·"}
-                </span>
+                {tile.kind === "gate" ||
+                tile.kind === "goal" ||
+                tile.kind === "mission" ? (
+                  <TileMark kind={tile.kind} />
+                ) : (
+                  <span className={`text-sm ${ACCENT_TEXT[a]}`}>
+                    {KIND_GLYPH[tile.kind] ?? "·"}
+                  </span>
+                )}
                 <span className="text-[7px] text-slate-500">{tile.index}</span>
               </div>
               <div className="truncate text-[7px] leading-tight text-slate-300">

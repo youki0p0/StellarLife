@@ -6,10 +6,13 @@ import { useState } from "react";
 import { Board } from "@/components/Board";
 import { Button, buttonClass } from "@/components/Button";
 import { Dice } from "@/components/Dice";
+import { EventFlashPopup } from "@/components/EventFlash";
 import { EventModal } from "@/components/EventModal";
 import { Lobby } from "@/components/Lobby";
 import { LogFeed } from "@/components/LogFeed";
 import { Results } from "@/components/Results";
+import { Rocket } from "@/components/sprites";
+import { SoundToggle } from "@/components/SoundToggle";
 import { ACCENT_BG, ACCENT_TEXT, accent } from "@/components/ui";
 import { activePlayerId } from "@/lib/game/cpu";
 import { segmentRank, tileAt } from "@/lib/game/board";
@@ -132,9 +135,12 @@ function GameView({
         <span className="text-[10px] text-slate-500">
           ターン {game.turnCount}/{game.maxTurns}
         </span>
-        <Button variant="cyan" size="sm" onClick={() => setLogOpen(true)}>
-          ログ
-        </Button>
+        <div className="flex items-center gap-2">
+          <SoundToggle />
+          <Button variant="cyan" size="sm" onClick={() => setLogOpen(true)}>
+            ログ
+          </Button>
+        </div>
       </header>
 
       {/* Player chips (horizontal scroll) */}
@@ -153,7 +159,8 @@ function GameView({
       <footer className="shrink-0 border-t-2 border-grid bg-panel/90 px-3 pb-3 pt-2">
         {active && (
           <>
-            <div className="mb-1 flex items-center justify-between">
+            <div className="mb-1 flex items-center gap-2">
+              <Rocket size={18} />
               <span
                 className={`text-sm font-bold ${ACCENT_TEXT[accent(active.color)]}`}
               >
@@ -189,6 +196,8 @@ function GameView({
           />
         </div>
       </footer>
+
+      <EventFlashPopup flash={game.pending ? null : game.lastEvent} />
 
       {game.pending && (
         <EventModal
