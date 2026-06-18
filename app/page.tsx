@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/Button";
 import { getSavedName, makeRoomCode, saveName } from "@/lib/clientId";
 import { isOnline } from "@/lib/supabaseClient";
 
@@ -60,12 +61,9 @@ export default function Home() {
           />
         </label>
 
-        <button
-          onClick={create}
-          className="w-full rounded border-2 border-neon-cyan bg-neon-cyan/10 px-4 py-3 text-sm font-bold text-neon-cyan transition hover:bg-neon-cyan/20 active:scale-95"
-        >
+        <Button variant="cyan" size="lg" fullWidth onClick={create}>
           新しいルームを作る
-        </button>
+        </Button>
 
         <div className="flex items-center gap-2">
           <input
@@ -75,12 +73,9 @@ export default function Home() {
             placeholder="ルームコード"
             className="flex-1 rounded border-2 border-grid bg-void px-3 py-2 text-sm tracking-widest text-slate-100 outline-none focus:border-neon-magenta"
           />
-          <button
-            onClick={join}
-            className="rounded border-2 border-neon-magenta bg-neon-magenta/10 px-4 py-2 text-sm font-bold text-neon-magenta transition hover:bg-neon-magenta/20 active:scale-95"
-          >
+          <Button variant="magenta" size="md" onClick={join}>
             参加
-          </button>
+          </Button>
         </div>
       </section>
 

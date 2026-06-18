@@ -9,6 +9,7 @@ import {
   type RoomAction,
   type RoomState,
 } from "@/lib/room";
+import { Button } from "./Button";
 import { ACCENT_BG, type Accent } from "./ui";
 
 const SEAT_COLORS: Accent[] = [
@@ -101,15 +102,18 @@ export function Lobby({
               )}
 
               {mine && !seat.isCpu && (
-                <button
+                <Button
+                  variant="lime"
+                  size="sm"
                   onClick={() => dispatch({ type: "TOGGLE_READY", seatId: seat.id })}
-                  className="rounded border border-neon-lime px-2 py-0.5 text-[10px] text-neon-lime"
                 >
                   {seat.ready ? "解除" : "準備"}
-                </button>
+                </Button>
               )}
               {(isHost || mine || seat.isCpu) && (
-                <button
+                <Button
+                  variant="red"
+                  size="sm"
                   onClick={() =>
                     dispatch({
                       type: "REMOVE_SEAT",
@@ -117,10 +121,9 @@ export function Lobby({
                       byClientId: clientId,
                     })
                   }
-                  className="rounded border border-neon-red px-2 py-0.5 text-[10px] text-neon-red"
                 >
                   ×
-                </button>
+                </Button>
               )}
             </li>
           );
@@ -129,7 +132,10 @@ export function Lobby({
 
       <div className="flex flex-wrap gap-2">
         {!mySeat && (
-          <button
+          <Button
+            variant="cyan"
+            size="md"
+            className="flex-1"
             onClick={() =>
               dispatch({
                 type: "JOIN",
@@ -138,28 +144,31 @@ export function Lobby({
                 name: "プレイヤー",
               })
             }
-            className="flex-1 rounded border-2 border-neon-cyan px-3 py-2 text-sm text-neon-cyan"
           >
             着席する
-          </button>
+          </Button>
         )}
-        <button
+        <Button
+          variant="violet"
+          size="md"
+          className="flex-1"
           disabled={state.seats.length >= MAX_SEATS}
           onClick={() => dispatch({ type: "ADD_CPU", seatId: uuid() })}
-          className="flex-1 rounded border-2 border-neon-violet px-3 py-2 text-sm text-neon-violet disabled:border-grid disabled:text-slate-600"
         >
           CPUを追加
-        </button>
+        </Button>
       </div>
 
       {isHost ? (
-        <button
+        <Button
+          variant="lime"
+          size="lg"
+          fullWidth
           disabled={!startable}
           onClick={() => dispatch({ type: "START", byClientId: clientId })}
-          className="rounded border-2 border-neon-lime bg-neon-lime/10 px-4 py-3 text-base font-bold text-neon-lime transition enabled:hover:bg-neon-lime/20 enabled:active:scale-95 disabled:cursor-not-allowed disabled:border-grid disabled:text-slate-600"
         >
           {startable ? "ゲーム開始" : "全員の準備を待っています"}
-        </button>
+        </Button>
       ) : (
         <p className="text-center text-[11px] text-slate-500">
           ホストの開始を待っています…

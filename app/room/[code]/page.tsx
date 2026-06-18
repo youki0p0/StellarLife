@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Board } from "@/components/Board";
+import { Button, buttonClass } from "@/components/Button";
 import { Dice } from "@/components/Dice";
 import { EventModal } from "@/components/EventModal";
 import { Lobby } from "@/components/Lobby";
@@ -34,13 +35,10 @@ export default function RoomPage() {
             : "環境変数が読み込まれていないため、ローカルモードです。"}
         </p>
         <div className="flex gap-3">
-          <button
-            onClick={() => window.location.reload()}
-            className="text-neon-lime underline"
-          >
+          <Button variant="lime" size="md" onClick={() => window.location.reload()}>
             再試行
-          </button>
-          <Link href="/" className="text-neon-cyan underline">
+          </Button>
+          <Link href="/" className={buttonClass("cyan", "md")}>
             ホームに戻る
           </Link>
         </div>
@@ -134,12 +132,9 @@ function GameView({
         <span className="text-[10px] text-slate-500">
           ターン {game.turnCount}/{game.maxTurns}
         </span>
-        <button
-          onClick={() => setLogOpen(true)}
-          className="rounded border border-grid px-2 py-0.5 text-[10px] text-neon-cyan"
-        >
+        <Button variant="cyan" size="sm" onClick={() => setLogOpen(true)}>
           ログ
-        </button>
+        </Button>
       </header>
 
       {/* Player chips (horizontal scroll) */}

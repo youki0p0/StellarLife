@@ -4,6 +4,7 @@ import { achievementLabel } from "@/lib/game/achievements";
 import { rankings } from "@/lib/game/score";
 import type { GameState } from "@/lib/game/types";
 import type { RoomAction } from "@/lib/room";
+import { Button } from "./Button";
 import { ACCENT_TEXT, accent } from "./ui";
 
 export function Results({
@@ -76,12 +77,14 @@ export function Results({
       </ol>
 
       {isHost ? (
-        <button
+        <Button
+          variant="lime"
+          size="lg"
+          fullWidth
           onClick={() => onRestart({ type: "RESTART", byClientId: clientId })}
-          className="rounded border-2 border-neon-lime bg-neon-lime/10 px-4 py-3 text-sm font-bold text-neon-lime transition hover:bg-neon-lime/20 active:scale-95"
         >
           もう一度遊ぶ
-        </button>
+        </Button>
       ) : (
         <p className="text-center text-[11px] text-slate-500">
           ホストが次のゲームを準備できます。
