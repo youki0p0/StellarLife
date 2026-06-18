@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
+import { RulesModal } from "@/components/RulesModal";
 import { getSavedName, makeRoomCode, saveName } from "@/lib/clientId";
 import { isOnline } from "@/lib/supabaseClient";
 
@@ -11,6 +12,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [online, setOnline] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
     setName(getSavedName());
@@ -86,6 +88,12 @@ export default function Home() {
           ? "オンライン対戦が有効です。コードを共有して招待しよう。"
           : "ローカルモード: この端末で全員プレイ + CPU。"}
       </p>
+
+      <Button variant="violet" size="sm" onClick={() => setRulesOpen(true)}>
+        遊び方
+      </Button>
+
+      <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </main>
   );
 }

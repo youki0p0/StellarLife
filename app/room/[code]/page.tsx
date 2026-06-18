@@ -12,10 +12,11 @@ import { Lobby } from "@/components/Lobby";
 import { LogFeed } from "@/components/LogFeed";
 import { Results } from "@/components/Results";
 import { Rocket } from "@/components/sprites";
+import { BgmToggle } from "@/components/BgmToggle";
 import { SoundToggle } from "@/components/SoundToggle";
 import { ACCENT_BG, ACCENT_TEXT, accent } from "@/components/ui";
 import { activePlayerId } from "@/lib/game/cpu";
-import { segmentRank, tileAt } from "@/lib/game/board";
+import { SEGMENT_ORDER, segmentRank, tileAt } from "@/lib/game/board";
 import { STAT_KEYS, STAT_META } from "@/lib/game/stats";
 import type { GameState, PlayerState } from "@/lib/game/types";
 import type { RoomState } from "@/lib/room";
@@ -136,6 +137,7 @@ function GameView({
           ターン {game.turnCount}/{game.maxTurns}
         </span>
         <div className="flex items-center gap-2">
+          <BgmToggle />
           <SoundToggle />
           <Button variant="cyan" size="sm" onClick={() => setLogOpen(true)}>
             ログ
@@ -244,6 +246,7 @@ function PlayerChip({
 }) {
   const a = accent(player.color);
   const seg = tileAt(player.position).segment;
+  const routeLabel = player.route === "moon" ? "月" : player.route === "mars" ? "火星" : null;
   return (
     <div
       className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 ${
@@ -255,7 +258,12 @@ function PlayerChip({
         {player.name}
         {player.finished && " ✦"}
       </span>
-      <span className="text-[8px] text-slate-500">{segmentRank(seg) + 1}/5</span>
+      {routeLabel && (
+        <span className="text-[8px] text-neon-violet">{routeLabel}</span>
+      )}
+      <span className="text-[8px] text-slate-500">
+        {segmentRank(seg) + 1}/{SEGMENT_ORDER.length}
+      </span>
     </div>
   );
 }

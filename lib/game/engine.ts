@@ -49,6 +49,7 @@ export function createGame(seats: SeatInput[], seed: string): GameState {
       isCpu: seat.isCpu,
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       position: 0,
+      route: null,
       stats: initialStats(),
       achievements: [],
       finished: false,
@@ -223,6 +224,7 @@ function handleChoose(state: GameState, choiceId: string): GameState {
   const choice = pending.card.choices?.find((c) => c.id === choiceId);
 
   if (choice) {
+    if (choice.route) player.route = choice.route;
     player.stats = applyDelta(player.stats, choice.delta);
     award(draft, player, choice.achievement);
     addLog(
@@ -258,6 +260,10 @@ function move(player: PlayerState, roll: number, draft: Draft): MoveResult {
   while (remaining > 0 && pos < LAST_TILE) {
     const next = pos + 1;
     const tile = BOARD[next];
+    // Must choose a route before entering the branch: stop on the branch tile.
+    if (tile.kind === "branch" && player.route === null) {
+      return { position: next, blockedGate: null };
+    }
     if (tile.kind === "gate") {
       const cost = SEGMENTS[tile.segment].fuelGate;
       if (player.stats.fuel < cost) {
@@ -278,6 +284,25 @@ function move(player: PlayerState, roll: number, draft: Draft): MoveResult {
   return { position: pos, blockedGate: null };
 }
 
+/** Resolve a tile's content for a player, applying their chosen route variant. */
+function effectiveTile(tile: Tile, player: PlayerState) {
+  if (tile.variants && player.route) {
+    const v = tile.variants[player.route];
+    return {
+      label: v.label,
+      delta: v.delta,
+      note: v.note,
+      achievement: v.achievement,
+    };
+  }
+  return {
+    label: tile.label,
+    delta: tile.delta,
+    note: tile.note,
+    achievement: tile.achievement,
+  };
+}
+
 /** Resolve the landed tile. Returns a PendingChoice if it needs a decision. */
 function resolveLanding(
   draft: Draft,
@@ -288,17 +313,20 @@ function resolveLanding(
     case "start":
     case "gate":
       return null;
+    case "branch":
+      return resolveBranch(draft, player);
     case "stat":
     case "mission":
     case "goal": {
-      if (tile.delta) player.stats = applyDelta(player.stats, tile.delta);
-      award(draft, player, tile.achievement);
+      const eff = effectiveTile(tile, player);
+      if (eff.delta) player.stats = applyDelta(player.stats, eff.delta);
+      award(draft, player, eff.achievement);
       addLog(
         draft,
         draft.state.turnCount,
-        `${player.name}: ${tile.note ?? tile.label}` +
-          (tile.delta ? ` (${describeDelta(tile.delta)})` : ""),
-        tile.kind === "goal" ? "good" : deltaTone(tile.delta ?? {}),
+        `${player.name}: ${eff.note ?? eff.label}` +
+          (eff.delta ? ` (${describeDelta(eff.delta)})` : ""),
+        tile.kind === "goal" ? "good" : deltaTone(eff.delta ?? {}),
         player.id,
       );
       if (tile.kind === "mission" || tile.kind === "goal") {
@@ -306,11 +334,11 @@ function resolveLanding(
           scope: "personal",
           playerId: player.id,
           playerName: player.name,
-          title: tile.label,
-          description: tile.note ?? tile.label,
-          delta: tile.delta ?? {},
+          title: eff.label,
+          description: eff.note ?? eff.label,
+          delta: eff.delta ?? {},
           tone: "good",
-          achievement: tile.achievement,
+          achievement: eff.achievement,
         });
       }
       if (tile.kind === "goal") {
@@ -330,6 +358,44 @@ function resolveLanding(
     default:
       return null;
   }
+}
+
+/** The Moon-vs-Mars route choice presented at the branch tile. */
+function resolveBranch(
+  draft: Draft,
+  player: PlayerState,
+): GameState["pending"] {
+  if (player.route !== null) return null; // already chosen
+  const card: GameEventCard = {
+    id: "route_choice",
+    scope: "personal",
+    title: "ルート分岐",
+    description: "次に目指すのは月か、火星か。選んだ道で人生が変わる。",
+    choices: [
+      {
+        id: "moon",
+        label: "月ルート",
+        delta: { skill: 3, fuel: 2 },
+        note: "月を目指すことにした",
+        route: "moon",
+      },
+      {
+        id: "mars",
+        label: "火星ルート",
+        delta: { dream: 4, reputation: 2 },
+        note: "火星を目指すことにした",
+        route: "mars",
+      },
+    ],
+  };
+  addLog(
+    draft,
+    draft.state.turnCount,
+    `${player.name} はルート分岐に到達。月か火星かを選ぶ。`,
+    "info",
+    player.id,
+  );
+  return { playerId: player.id, card };
 }
 
 function drawEvent(

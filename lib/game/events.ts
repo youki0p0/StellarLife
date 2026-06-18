@@ -165,8 +165,7 @@ export const GLOBAL_EVENTS: GameEventCard[] = [
 const PERSONAL_DECKS: Record<SegmentId, GameEventCard[]> = {
   earth: EARTH_EVENTS,
   low_orbit: SPACE_EVENTS,
-  moon: SPACE_EVENTS,
-  mars: SPACE_EVENTS,
+  mid: SPACE_EVENTS,
   deep_space: SPACE_EVENTS,
 };
 

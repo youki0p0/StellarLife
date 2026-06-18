@@ -18,6 +18,7 @@ const KIND_GLYPH: Record<string, string> = {
   stat: "+",
   mission: "★",
   gate: "↑",
+  branch: "⋔",
   goal: "✦",
 };
 
