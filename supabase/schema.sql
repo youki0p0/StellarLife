@@ -36,8 +36,14 @@ create trigger trg_rooms_updated_at
   before update on public.rooms
   for each row execute function public.touch_updated_at();
 
--- Realtime: clients subscribe to UPDATEs on rooms.
-alter publication supabase_realtime add table public.rooms;
+-- Realtime: clients subscribe to UPDATEs on rooms. Idempotent — re-running the
+-- schema must not fail if the table is already a publication member (42710).
+do $$
+begin
+  alter publication supabase_realtime add table public.rooms;
+exception
+  when duplicate_object then null;
+end $$;
 
 -- Row-level security. These are permissive development policies (no auth, a
 -- stable client_id lives in localStorage). Tighten before any public launch.
