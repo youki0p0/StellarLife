@@ -26,7 +26,8 @@ export interface RoomState {
 }
 
 export const MAX_SEATS = 8;
-export const MIN_SEATS = 2;
+// One seat is enough: a solo score-attack run, or add CPUs to play against.
+export const MIN_SEATS = 1;
 
 export type RoomAction =
   | { type: "JOIN"; clientId: string; name: string; seatId: string }

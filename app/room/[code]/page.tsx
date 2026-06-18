@@ -2,19 +2,19 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 import { Board } from "@/components/Board";
+import { Button, buttonClass } from "@/components/Button";
 import { Dice } from "@/components/Dice";
 import { EventModal } from "@/components/EventModal";
 import { Lobby } from "@/components/Lobby";
 import { LogFeed } from "@/components/LogFeed";
 import { Results } from "@/components/Results";
-import { StatsPanel } from "@/components/StatsPanel";
-import { ACCENT_TEXT, accent } from "@/components/ui";
+import { ACCENT_BG, ACCENT_TEXT, accent } from "@/components/ui";
 import { activePlayerId } from "@/lib/game/cpu";
-import { segmentRank } from "@/lib/game/board";
-import { tileAt } from "@/lib/game/board";
-import { SEGMENTS } from "@/lib/game/board";
-import type { GameState } from "@/lib/game/types";
+import { segmentRank, tileAt } from "@/lib/game/board";
+import { STAT_KEYS, STAT_META } from "@/lib/game/stats";
+import type { GameState, PlayerState } from "@/lib/game/types";
 import type { RoomState } from "@/lib/room";
 import { useRoom } from "@/store/useRoom";
 
@@ -29,9 +29,19 @@ export default function RoomPage() {
   if (room.status === "error") {
     return (
       <Centered text={`接続エラー: ${room.error ?? "不明"}`}>
-        <Link href="/" className="text-neon-cyan underline">
-          ホームに戻る
-        </Link>
+        <p className="max-w-xs text-[10px] leading-relaxed text-slate-500">
+          {room.online
+            ? "Supabase に接続できませんでした。schema.sql の実行、環境変数 (URL / publishable key)、プロジェクトが一時停止していないかを確認してください。"
+            : "環境変数が読み込まれていないため、ローカルモードです。"}
+        </p>
+        <div className="flex gap-3">
+          <Button variant="lime" size="md" onClick={() => window.location.reload()}>
+            再試行
+          </Button>
+          <Link href="/" className={buttonClass("cyan", "md")}>
+            ホームに戻る
+          </Link>
+        </div>
       </Centered>
     );
   }
@@ -100,6 +110,7 @@ function GameView({
   onRoll: (playerId: string) => void;
   onChoose: (playerId: string, choiceId: string) => void;
 }) {
+  const [logOpen, setLogOpen] = useState(false);
   const players = game.turnOrder.map((id) => game.players[id]);
   const activeId = activePlayerId(game);
   const active = activeId ? game.players[activeId] : null;
@@ -109,86 +120,75 @@ function GameView({
   // Map the acting game player back to the seat owner to gate the choice UI.
   const activeSeat = state.seats.find((s) => s.id === activeId);
   const iControlActive = activeSeat?.clientId === clientId;
+  const latestLog = game.log[game.log.length - 1];
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col gap-3 px-4 py-4">
-      <header className="flex items-center justify-between">
+    <main className="relative mx-auto flex h-[100dvh] max-w-3xl flex-col overflow-hidden">
+      {/* Top bar: title, turn counter, log toggle */}
+      <header className="flex shrink-0 items-center justify-between px-3 py-2">
         <Link href="/" className="text-[10px] text-slate-500">
           ← STELLAR LIFE
         </Link>
         <span className="text-[10px] text-slate-500">
-          ターン {game.turnCount} / {game.maxTurns}
+          ターン {game.turnCount}/{game.maxTurns}
         </span>
+        <Button variant="cyan" size="sm" onClick={() => setLogOpen(true)}>
+          ログ
+        </Button>
       </header>
 
-      <div className="rounded border-2 border-grid bg-panel/70 px-3 py-2 text-center">
+      {/* Player chips (horizontal scroll) */}
+      <div className="flex shrink-0 gap-1.5 overflow-x-auto px-3 pb-2">
+        {players.map((p) => (
+          <PlayerChip key={p.id} player={p} active={p.id === activeId} />
+        ))}
+      </div>
+
+      {/* Board: the hero, fills remaining space and scrolls internally */}
+      <div className="min-h-0 flex-1">
+        <Board players={players} activeId={activeId} />
+      </div>
+
+      {/* Bottom action bar: active player + stats strip + dice */}
+      <footer className="shrink-0 border-t-2 border-grid bg-panel/90 px-3 pb-3 pt-2">
         {active && (
-          <span className={`text-sm font-bold ${ACCENT_TEXT[accent(active.color)]}`}>
-            {active.name} のターン
-            {activeIsCpu && (
-              <span className="ml-2 text-[10px] text-slate-400">CPU思考中…</span>
-            )}
-          </span>
-        )}
-      </div>
-
-      <Board players={players} />
-
-      {/* Players overview */}
-      <div className="grid grid-cols-2 gap-1.5">
-        {players.map((p) => {
-          const seg = SEGMENTS[tileAt(p.position).segment];
-          const a = accent(p.color);
-          const isActive = p.id === activeId;
-          return (
-            <div
-              key={p.id}
-              className={`rounded border ${
-                isActive ? "border-neon-cyan" : "border-grid"
-              } bg-void/60 px-2 py-1`}
-            >
-              <div className="flex items-center justify-between">
-                <span className={`truncate text-[11px] font-bold ${ACCENT_TEXT[a]}`}>
-                  {p.name}
-                  {p.finished && " ✦"}
-                </span>
-                <span className="text-[8px] text-slate-500">
-                  {segmentRank(seg.id) + 1}/5
-                </span>
-              </div>
-              <div className="text-[8px] text-slate-400">{seg.name}</div>
+          <>
+            <div className="mb-1 flex items-center justify-between">
+              <span
+                className={`text-sm font-bold ${ACCENT_TEXT[accent(active.color)]}`}
+              >
+                {active.name} のターン
+                {activeIsCpu && (
+                  <span className="ml-2 text-[10px] text-slate-400">
+                    CPU思考中…
+                  </span>
+                )}
+              </span>
             </div>
-          );
-        })}
-      </div>
+            <StatStrip player={active} />
+          </>
+        )}
 
-      {active && (
-        <div className="rounded border-2 border-grid bg-panel/70 p-2">
-          <div className={`mb-1 text-[10px] ${ACCENT_TEXT[accent(active.color)]}`}>
-            {active.name} のステータス
-          </div>
-          <StatsPanel player={active} />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="flex-1 truncate text-[10px] text-slate-400">
+            {latestLog?.text}
+          </p>
+          <Dice
+            value={game.lastRoll?.value ?? null}
+            canRoll={canRoll}
+            onRoll={() => activeId && onRoll(activeId)}
+            label={
+              game.pending
+                ? "イベント中"
+                : isMyTurn
+                  ? "サイコロを振る"
+                  : activeIsCpu
+                    ? "CPUの番"
+                    : "相手の番"
+            }
+          />
         </div>
-      )}
-
-      <div className="flex items-center justify-center py-1">
-        <Dice
-          value={game.lastRoll?.value ?? null}
-          canRoll={canRoll}
-          onRoll={() => activeId && onRoll(activeId)}
-          label={
-            game.pending
-              ? "イベント処理中"
-              : isMyTurn
-                ? "サイコロを振る"
-                : activeIsCpu
-                  ? "CPUの番"
-                  : "相手の番"
-          }
-        />
-      </div>
-
-      <LogFeed log={game.log} />
+      </footer>
 
       {game.pending && (
         <EventModal
@@ -198,7 +198,79 @@ function GameView({
           onChoose={(choiceId) => onChoose(game.pending!.playerId, choiceId)}
         />
       )}
+
+      {logOpen && (
+        <div
+          className="fixed inset-0 z-30 flex flex-col justify-end bg-void/70"
+          onClick={() => setLogOpen(false)}
+        >
+          <div
+            className="rounded-t-lg border-t-2 border-neon-cyan bg-panel p-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11px] text-neon-cyan">ログ</span>
+              <button
+                onClick={() => setLogOpen(false)}
+                className="text-[11px] text-slate-400"
+              >
+                閉じる
+              </button>
+            </div>
+            <LogFeed log={game.log} />
+          </div>
+        </div>
+      )}
     </main>
+  );
+}
+
+/** Compact per-player chip used in the top bar. */
+function PlayerChip({
+  player,
+  active,
+}: {
+  player: PlayerState;
+  active: boolean;
+}) {
+  const a = accent(player.color);
+  const seg = tileAt(player.position).segment;
+  return (
+    <div
+      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 ${
+        active ? "border-white/80 bg-void" : "border-grid bg-void/50"
+      }`}
+    >
+      <span className={`h-2.5 w-2.5 rounded-full ${ACCENT_BG[a]}`} />
+      <span className={`text-[10px] font-bold ${ACCENT_TEXT[a]}`}>
+        {player.name}
+        {player.finished && " ✦"}
+      </span>
+      <span className="text-[8px] text-slate-500">{segmentRank(seg) + 1}/5</span>
+    </div>
+  );
+}
+
+/** Horizontal strip of all eight stats for the active player. */
+function StatStrip({ player }: { player: PlayerState }) {
+  return (
+    <div className="flex gap-1 overflow-x-auto">
+      {STAT_KEYS.map((key) => {
+        const meta = STAT_META[key];
+        const a = accent(meta.accent);
+        return (
+          <div
+            key={key}
+            className="flex min-w-[2.4rem] flex-1 flex-col items-center rounded border border-grid bg-void/70 px-1 py-0.5"
+          >
+            <span className={`text-[8px] ${ACCENT_TEXT[a]}`}>{meta.label}</span>
+            <span className="text-xs font-bold tabular-nums text-slate-100">
+              {player.stats[key]}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

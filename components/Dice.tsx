@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "./Button";
 
 const FACES = ["1", "2", "3", "4", "5", "6"];
 
@@ -34,13 +35,9 @@ export function Dice({
       >
         {value === null ? "·" : FACES[value - 1]}
       </div>
-      <button
-        onClick={onRoll}
-        disabled={!canRoll}
-        className="rounded border-2 border-neon-lime bg-neon-lime/10 px-6 py-2 text-sm font-bold text-neon-lime transition enabled:hover:bg-neon-lime/20 enabled:active:scale-95 disabled:cursor-not-allowed disabled:border-grid disabled:text-slate-600"
-      >
+      <Button variant="lime" size="md" onClick={onRoll} disabled={!canRoll}>
         {label}
-      </button>
+      </Button>
     </div>
   );
 }

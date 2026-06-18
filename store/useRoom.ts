@@ -10,10 +10,39 @@ import {
   type RoomAction,
   type RoomState,
 } from "@/lib/room";
-import { getSupabase } from "@/lib/supabaseClient";
+import {
+  findOrCreateRoom,
+  loadRoomById,
+  persistState,
+  subscribeRoom,
+} from "@/lib/db";
+import { isOnline } from "@/lib/supabaseClient";
 
 const MAX_RETRIES = 6;
 const CPU_DELAY_MS = 750;
+/** If the initial connection has not resolved by this point, surface an error
+ * instead of leaving the user stuck on an infinite "接続中" spinner. */
+const CONNECT_TIMEOUT_MS = 12000;
+
+/** Reject if a Supabase call hangs (paused project, network stall, CORS). */
+function withTimeout<T>(promise: PromiseLike<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} がタイムアウトしました (${CONNECT_TIMEOUT_MS / 1000}秒)`)),
+      CONNECT_TIMEOUT_MS,
+    );
+    Promise.resolve(promise).then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
 
 export type RoomStatus = "connecting" | "ready" | "error";
 
@@ -29,8 +58,7 @@ export interface UseRoom {
 }
 
 export function useRoom(code: string): UseRoom {
-  const supabase = getSupabase();
-  const online = supabase !== null;
+  const online = isOnline();
 
   const [state, setState] = useState<RoomState | null>(null);
   const [status, setStatus] = useState<RoomStatus>("connecting");
@@ -54,48 +82,33 @@ export function useRoom(code: string): UseRoom {
 
   const persistOnline = useCallback(
     async (action: RoomAction) => {
-      if (!supabase) return;
+      const roomId = roomIdRef.current;
+      if (!roomId) return;
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         const base = stateRef.current;
         if (!base) return;
         const next = roomReducer(base, action);
         if (next === base) return; // no-op / invalid
 
-        const { data, error: upErr } = await supabase
-          .from("rooms")
-          .update({
-            state: next,
-            version: versionRef.current + 1,
-            status: next.phase,
-            seed: next.seed,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", roomIdRef.current)
-          .eq("version", versionRef.current)
-          .select("version,state");
-
-        if (upErr) {
-          setError(upErr.message);
+        const res = await persistState(roomId, versionRef.current, next);
+        if (res.status === "ok") {
+          versionRef.current = res.row.version;
+          setBoth(res.row.state);
           return;
         }
-        if (data && data.length > 0) {
-          versionRef.current = data[0].version as number;
-          setBoth(data[0].state as RoomState);
+        if (res.status === "error") {
+          setError(res.error);
           return;
         }
-        // Version conflict: reload latest and retry.
-        const { data: fresh } = await supabase
-          .from("rooms")
-          .select("version,state")
-          .eq("id", roomIdRef.current)
-          .single();
+        // Version conflict: reload latest and retry against fresh state.
+        const fresh = await loadRoomById(roomId);
         if (fresh) {
-          versionRef.current = fresh.version as number;
-          stateRef.current = fresh.state as RoomState;
+          versionRef.current = fresh.version;
+          stateRef.current = fresh.state;
         }
       }
     },
-    [supabase, setBoth],
+    [setBoth],
   );
 
   const dispatch = useCallback(
@@ -116,11 +129,10 @@ export function useRoom(code: string): UseRoom {
 
   useEffect(() => {
     let cancelled = false;
-    let channel: ReturnType<NonNullable<typeof supabase>["channel"]> | null =
-      null;
+    let unsubscribe: (() => void) | null = null;
 
     async function connect() {
-      if (!supabase) {
+      if (!online) {
         // Local mode: create an in-memory room with this client as host.
         const fresh = createRoomState(clientId, `${code}-local`);
         setBoth(fresh);
@@ -129,75 +141,27 @@ export function useRoom(code: string): UseRoom {
       }
 
       try {
-        // Find or create the room row for this code.
-        const existing = await supabase
-          .from("rooms")
-          .select("id,version,state")
-          .eq("code", code)
-          .maybeSingle();
-
-        let roomId: string;
-        if (existing.data) {
-          roomId = existing.data.id as string;
-          versionRef.current = existing.data.version as number;
-          stateRef.current = existing.data.state as RoomState;
-        } else {
-          const initial = createRoomState(clientId, `${code}-${uuid().slice(0, 8)}`);
-          const inserted = await supabase
-            .from("rooms")
-            .insert({
-              code,
-              host_client_id: clientId,
-              status: initial.phase,
-              seed: initial.seed,
-              state: initial,
-              version: 1,
-            })
-            .select("id,version,state")
-            .single();
-          if (inserted.error) {
-            // Likely a race: another client created it first. Re-read.
-            const retry = await supabase
-              .from("rooms")
-              .select("id,version,state")
-              .eq("code", code)
-              .single();
-            if (retry.error) throw retry.error;
-            roomId = retry.data.id as string;
-            versionRef.current = retry.data.version as number;
-            stateRef.current = retry.data.state as RoomState;
-          } else {
-            roomId = inserted.data.id as string;
-            versionRef.current = inserted.data.version as number;
-            stateRef.current = inserted.data.state as RoomState;
-          }
-        }
-
+        console.info("[stellar-life] online mode: connecting to room", code);
+        const row = await withTimeout(
+          findOrCreateRoom(code, clientId),
+          "ルーム接続",
+        );
         if (cancelled) return;
-        roomIdRef.current = roomId;
-        setBoth(stateRef.current!);
+
+        roomIdRef.current = row.id;
+        versionRef.current = row.version;
+        setBoth(row.state);
         setStatus("ready");
 
-        channel = supabase
-          .channel(`room:${roomId}`)
-          .on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "rooms",
-              filter: `id=eq.${roomId}`,
-            },
-            (payload) => {
-              const row = payload.new as { version: number; state: RoomState };
-              if (row.version >= versionRef.current) {
-                versionRef.current = row.version;
-                setBoth(row.state);
-              }
-            },
-          )
-          .subscribe();
+        // broadcast (primary) + postgres_changes + polling, all via db.ts.
+        unsubscribe = subscribeRoom(row.id, (incoming) => {
+          if (incoming.version > versionRef.current) {
+            versionRef.current = incoming.version;
+            setBoth(incoming.state);
+          }
+        });
       } catch (e) {
+        console.error("[stellar-life] room connection failed", e);
         if (!cancelled) {
           setError(e instanceof Error ? e.message : String(e));
           setStatus("error");
@@ -208,7 +172,7 @@ export function useRoom(code: string): UseRoom {
     void connect();
     return () => {
       cancelled = true;
-      if (channel && supabase) void supabase.removeChannel(channel);
+      if (unsubscribe) unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
