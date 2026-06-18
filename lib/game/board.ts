@@ -7,16 +7,14 @@ import type { Segment, SegmentId, Tile } from "./types";
 export const SEGMENTS: Record<SegmentId, Segment> = {
   earth: { id: "earth", name: "地球の人生", accent: "lime", fuelGate: 0 },
   low_orbit: { id: "low_orbit", name: "低軌道", accent: "cyan", fuelGate: 8 },
-  moon: { id: "moon", name: "月ルート", accent: "violet", fuelGate: 12 },
-  mars: { id: "mars", name: "火星ルート", accent: "red", fuelGate: 16 },
+  mid: { id: "mid", name: "月/火星ルート", accent: "violet", fuelGate: 12 },
   deep_space: { id: "deep_space", name: "深宇宙", accent: "magenta", fuelGate: 20 },
 };
 
 export const SEGMENT_ORDER: SegmentId[] = [
   "earth",
   "low_orbit",
-  "moon",
-  "mars",
+  "mid",
   "deep_space",
 ];
 
@@ -49,24 +47,46 @@ const LOW_ORBIT: Blueprint[] = [
   { kind: "event", label: "軌道イベント" },
 ];
 
-const MOON: Blueprint[] = [
-  { kind: "gate", label: "月遷移軌道" },
-  { kind: "stat", label: "月面基地", delta: { skill: 5, reputation: 5 }, note: "月面基地の建設に貢献" },
-  { kind: "event", label: "資源採掘" },
-  { kind: "stat", label: "低重力研究", delta: { skill: 7, health: 4 }, note: "低重力研究で成果" },
-  { kind: "event", label: "月面イベント" },
-  { kind: "mission", label: "月面基地計画に参加", delta: { dream: 8, crew: 1, reputation: 4 }, note: "歴史的な月計画の一員に", achievement: "moon_base" },
+// The branched middle: everyone enters here, picks Moon or Mars at the branch
+// tile, then the route tiles resolve to their chosen route's variant.
+const MID: Blueprint[] = [
+  { kind: "gate", label: "遷移軌道" },
+  { kind: "branch", label: "分岐: 月か火星か" },
+  {
+    kind: "stat",
+    label: "拠点を築く",
+    variants: {
+      moon: { label: "月面基地", delta: { skill: 5, reputation: 5 }, note: "月面基地の建設に貢献" },
+      mars: { label: "火星移住", delta: { dream: 8, health: -4 }, note: "赤い惑星に降り立った" },
+    },
+  },
+  { kind: "event", label: "現地イベント" },
+  {
+    kind: "stat",
+    label: "事業を広げる",
+    variants: {
+      moon: { label: "資源採掘", delta: { money: 14, risk: 3 }, note: "月の資源で稼いだ" },
+      mars: { label: "コロニー運営", delta: { reputation: 6, crew: 1 }, note: "コロニーを切り盛りした" },
+    },
+  },
+  { kind: "event", label: "開発イベント" },
+  {
+    kind: "stat",
+    label: "研究を深める",
+    variants: {
+      moon: { label: "低重力研究", delta: { skill: 7, health: 4 }, note: "低重力研究で成果" },
+      mars: { label: "テラフォーミング", delta: { skill: 8, reputation: 6 }, note: "火星を作り変える挑戦" },
+    },
+  },
+  {
+    kind: "mission",
+    label: "歴史的偉業",
+    variants: {
+      moon: { label: "月面基地計画に参加", delta: { dream: 8, crew: 1, reputation: 4 }, note: "歴史的な月計画の一員に", achievement: "moon_base" },
+      mars: { label: "火星移住抽選に当選", delta: { dream: 10, reputation: 5 }, note: "移住の切符を引き当てた", achievement: "mars_lottery" },
+    },
+  },
   { kind: "event", label: "補給イベント" },
-];
-
-const MARS: Blueprint[] = [
-  { kind: "gate", label: "火星遷移軌道" },
-  { kind: "stat", label: "火星移住", delta: { dream: 8, health: -4 }, note: "赤い惑星に降り立った" },
-  { kind: "event", label: "コロニー運営" },
-  { kind: "stat", label: "テラフォーミング", delta: { skill: 8, reputation: 6 }, note: "火星を作り変える挑戦" },
-  { kind: "event", label: "火星イベント" },
-  { kind: "mission", label: "火星移住抽選に当選", delta: { dream: 10, reputation: 5 }, note: "移住の切符を引き当てた", achievement: "mars_lottery" },
-  { kind: "event", label: "コロニーイベント" },
 ];
 
 const DEEP_SPACE: Blueprint[] = [
@@ -81,8 +101,7 @@ const DEEP_SPACE: Blueprint[] = [
 const SEGMENT_BLUEPRINTS: Record<SegmentId, Blueprint[]> = {
   earth: EARTH,
   low_orbit: LOW_ORBIT,
-  moon: MOON,
-  mars: MARS,
+  mid: MID,
   deep_space: DEEP_SPACE,
 };
 

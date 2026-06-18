@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
+import { RulesModal } from "@/components/RulesModal";
 import { getSavedName, makeRoomCode, saveName } from "@/lib/clientId";
 import { isOnline } from "@/lib/supabaseClient";
 
@@ -11,6 +12,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [online, setOnline] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
     setName(getSavedName());
@@ -31,6 +33,11 @@ export default function Home() {
     if (c.length < 4) return;
     commitName();
     router.push(`/room/${c}`);
+  }
+
+  function solo() {
+    commitName();
+    router.push(`/room/${makeRoomCode()}?solo=1`);
   }
 
   return (
@@ -65,15 +72,19 @@ export default function Home() {
           新しいルームを作る
         </Button>
 
+        <Button variant="lime" size="lg" fullWidth onClick={solo}>
+          ひとりで遊ぶ
+        </Button>
+
         <div className="flex items-center gap-2">
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={6}
             placeholder="ルームコード"
-            className="flex-1 rounded border-2 border-grid bg-void px-3 py-2 text-sm tracking-widest text-slate-100 outline-none focus:border-neon-magenta"
+            className="min-w-0 flex-1 rounded border-2 border-grid bg-void px-3 py-2 text-sm tracking-widest text-slate-100 outline-none focus:border-neon-magenta"
           />
-          <Button variant="magenta" size="md" onClick={join}>
+          <Button variant="magenta" size="md" className="shrink-0" onClick={join}>
             参加
           </Button>
         </div>
@@ -86,6 +97,12 @@ export default function Home() {
           ? "オンライン対戦が有効です。コードを共有して招待しよう。"
           : "ローカルモード: この端末で全員プレイ + CPU。"}
       </p>
+
+      <Button variant="violet" size="sm" onClick={() => setRulesOpen(true)}>
+        遊び方
+      </Button>
+
+      <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </main>
   );
 }

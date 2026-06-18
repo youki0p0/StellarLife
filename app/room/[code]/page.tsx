@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Board } from "@/components/Board";
 import { Button, buttonClass } from "@/components/Button";
+import { CoopBar } from "@/components/CoopBar";
 import { Dice } from "@/components/Dice";
 import { EventFlashPopup } from "@/components/EventFlash";
 import { EventModal } from "@/components/EventModal";
@@ -12,10 +13,11 @@ import { Lobby } from "@/components/Lobby";
 import { LogFeed } from "@/components/LogFeed";
 import { Results } from "@/components/Results";
 import { Rocket } from "@/components/sprites";
+import { BgmToggle } from "@/components/BgmToggle";
 import { SoundToggle } from "@/components/SoundToggle";
 import { ACCENT_BG, ACCENT_TEXT, accent } from "@/components/ui";
 import { activePlayerId } from "@/lib/game/cpu";
-import { segmentRank, tileAt } from "@/lib/game/board";
+import { SEGMENT_ORDER, segmentRank, tileAt } from "@/lib/game/board";
 import { STAT_KEYS, STAT_META } from "@/lib/game/stats";
 import type { GameState, PlayerState } from "@/lib/game/types";
 import type { RoomState } from "@/lib/room";
@@ -25,6 +27,23 @@ export default function RoomPage() {
   const params = useParams<{ code: string }>();
   const code = (params.code ?? "").toString().toUpperCase();
   const room = useRoom(code);
+  const searchParams = useSearchParams();
+  const solo = searchParams.get("solo") === "1";
+
+  // Solo quick-start: ready up and start a 1-player game automatically.
+  const { state: roomState, clientId, dispatch } = room;
+  useEffect(() => {
+    if (!solo || !roomState || roomState.phase !== "lobby") return;
+    const mySeat = roomState.seats.find((s) => s.clientId === clientId);
+    if (!mySeat) return; // wait for auto-join
+    if (!mySeat.ready) {
+      dispatch({ type: "TOGGLE_READY", seatId: mySeat.id });
+      return;
+    }
+    if (roomState.hostClientId === clientId) {
+      dispatch({ type: "START", byClientId: clientId });
+    }
+  }, [solo, roomState, clientId, dispatch]);
 
   if (room.status === "connecting" || !room.state) {
     return <Centered text="接続中…" />;
@@ -136,6 +155,7 @@ function GameView({
           ターン {game.turnCount}/{game.maxTurns}
         </span>
         <div className="flex items-center gap-2">
+          <BgmToggle />
           <SoundToggle />
           <Button variant="cyan" size="sm" onClick={() => setLogOpen(true)}>
             ログ
@@ -148,6 +168,10 @@ function GameView({
         {players.map((p) => (
           <PlayerChip key={p.id} player={p} active={p.id === activeId} />
         ))}
+      </div>
+
+      <div className="px-3 pb-2">
+        <CoopBar coop={game.coop} />
       </div>
 
       {/* Board: the hero, fills remaining space and scrolls internally */}
@@ -244,6 +268,7 @@ function PlayerChip({
 }) {
   const a = accent(player.color);
   const seg = tileAt(player.position).segment;
+  const routeLabel = player.route === "moon" ? "月" : player.route === "mars" ? "火星" : null;
   return (
     <div
       className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 ${
@@ -255,7 +280,12 @@ function PlayerChip({
         {player.name}
         {player.finished && " ✦"}
       </span>
-      <span className="text-[8px] text-slate-500">{segmentRank(seg) + 1}/5</span>
+      {routeLabel && (
+        <span className="text-[8px] text-neon-violet">{routeLabel}</span>
+      )}
+      <span className="text-[8px] text-slate-500">
+        {segmentRank(seg) + 1}/{SEGMENT_ORDER.length}
+      </span>
     </div>
   );
 }

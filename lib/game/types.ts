@@ -17,12 +17,10 @@ export type Stats = Record<StatKey, number>;
 /** Partial stat change applied by a tile or event. */
 export type StatDelta = Partial<Stats>;
 
-export type SegmentId =
-  | "earth"
-  | "low_orbit"
-  | "moon"
-  | "mars"
-  | "deep_space";
+export type SegmentId = "earth" | "low_orbit" | "mid" | "deep_space";
+
+/** The branch a player chose for the middle of the journey. */
+export type RouteId = "moon" | "mars";
 
 export interface Segment {
   id: SegmentId;
@@ -40,7 +38,16 @@ export type TileKind =
   | "stat" // fixed stat change
   | "mission" // co-op style positive milestone
   | "gate" // segment boundary, needs fuel to pass
+  | "branch" // choose Moon or Mars route
   | "goal"; // final tile (deep space frontier)
+
+/** Route-specific content for a tile in the branched middle section. */
+export interface TileVariant {
+  label: string;
+  delta?: StatDelta;
+  note?: string;
+  achievement?: string;
+}
 
 export interface Tile {
   index: number;
@@ -54,6 +61,8 @@ export interface Tile {
   note?: string;
   /** For "mission" tiles: a life goal id awarded on landing. */
   achievement?: string;
+  /** Route-specific overrides; resolved by the player's chosen route. */
+  variants?: Record<RouteId, TileVariant>;
 }
 
 export interface EventChoice {
@@ -62,6 +71,8 @@ export interface EventChoice {
   delta: StatDelta;
   note: string;
   achievement?: string;
+  /** If set, choosing this option locks in the player's route. */
+  route?: RouteId;
 }
 
 export type EventScope = "personal" | "global";
@@ -84,6 +95,8 @@ export interface PlayerState {
   isCpu: boolean;
   color: string;
   position: number;
+  /** Chosen middle-section route, or null until the branch is reached. */
+  route: RouteId | null;
   stats: Stats;
   achievements: string[];
   finished: boolean;
@@ -121,6 +134,16 @@ export interface PendingChoice {
 
 export type GamePhase = "lobby" | "playing" | "finished";
 
+/** A shared, collaborative objective the whole table fills together. */
+export interface CoopMission {
+  title: string;
+  description: string;
+  progress: number;
+  goal: number;
+  reward: StatDelta;
+  done: boolean;
+}
+
 export interface GameState {
   phase: GamePhase;
   /** Deterministic RNG state (mulberry32). */
@@ -141,6 +164,8 @@ export interface GameState {
   lastEvent: EventFlash | null;
   /** Monotonic counter backing EventFlash.seq. */
   eventSeq: number;
+  /** Shared co-op mission the whole table contributes to (null if none). */
+  coop: CoopMission | null;
   winnerId: string | null;
 }
 

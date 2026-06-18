@@ -49,6 +49,7 @@ export function createGame(seats: SeatInput[], seed: string): GameState {
       isCpu: seat.isCpu,
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       position: 0,
+      route: null,
       stats: initialStats(),
       achievements: [],
       finished: false,
@@ -76,6 +77,14 @@ export function createGame(seats: SeatInput[], seed: string): GameState {
     lastRoll: null,
     lastEvent: null,
     eventSeq: 0,
+    coop: {
+      title: "共同打ち上げ計画",
+      description: "みんなで燃料ゲートを突破し、人類を宇宙へ押し上げよう。",
+      progress: 0,
+      goal: Math.max(4, seats.length * 3),
+      reward: { dream: 6, reputation: 4, fuel: 4, crew: 1 },
+      done: false,
+    },
     winnerId: null,
   };
 }
@@ -114,6 +123,7 @@ interface Draft {
   logSeq: number;
   lastEvent: GameState["lastEvent"];
   eventSeq: number;
+  coop: GameState["coop"];
 }
 
 function startDraft(state: GameState): Draft {
@@ -125,7 +135,45 @@ function startDraft(state: GameState): Draft {
     logSeq: state.logSeq,
     lastEvent: state.lastEvent,
     eventSeq: state.eventSeq,
+    coop: state.coop ? { ...state.coop } : null,
   };
+}
+
+/** Add shared progress to the co-op mission; completing it rewards everyone. */
+function contributeCoop(draft: Draft, amount: number, byName: string) {
+  const coop = draft.coop;
+  if (!coop || coop.done) return;
+  const progress = Math.min(coop.goal, coop.progress + amount);
+  draft.coop = { ...coop, progress };
+  addLog(
+    draft,
+    draft.state.turnCount,
+    `${byName} が共同ミッションに貢献 (${progress}/${coop.goal})。`,
+    "info",
+  );
+  if (progress >= coop.goal) {
+    draft.coop = { ...draft.coop, done: true };
+    for (const id of Object.keys(draft.players)) {
+      const p = draft.players[id];
+      if (p.finished) continue;
+      p.stats = applyDelta(p.stats, coop.reward);
+    }
+    addLog(
+      draft,
+      draft.state.turnCount,
+      `共同ミッション「${coop.title}」を全員で達成! (${describeDelta(coop.reward)})`,
+      "global",
+    );
+    flashEvent(draft, {
+      scope: "global",
+      playerId: null,
+      playerName: "全体",
+      title: `共同ミッション達成: ${coop.title}`,
+      description: "全員の力で打ち上げ計画を成功させた。",
+      delta: coop.reward,
+      tone: "good",
+    });
+  }
 }
 
 function cloneePlayers(
@@ -223,6 +271,7 @@ function handleChoose(state: GameState, choiceId: string): GameState {
   const choice = pending.card.choices?.find((c) => c.id === choiceId);
 
   if (choice) {
+    if (choice.route) player.route = choice.route;
     player.stats = applyDelta(player.stats, choice.delta);
     award(draft, player, choice.achievement);
     addLog(
@@ -258,6 +307,10 @@ function move(player: PlayerState, roll: number, draft: Draft): MoveResult {
   while (remaining > 0 && pos < LAST_TILE) {
     const next = pos + 1;
     const tile = BOARD[next];
+    // Must choose a route before entering the branch: stop on the branch tile.
+    if (tile.kind === "branch" && player.route === null) {
+      return { position: next, blockedGate: null };
+    }
     if (tile.kind === "gate") {
       const cost = SEGMENTS[tile.segment].fuelGate;
       if (player.stats.fuel < cost) {
@@ -271,11 +324,32 @@ function move(player: PlayerState, roll: number, draft: Draft): MoveResult {
         "good",
         player.id,
       );
+      // Crossing a gate is a shared step toward the co-op launch programme.
+      contributeCoop(draft, 1, player.name);
     }
     pos = next;
     remaining -= 1;
   }
   return { position: pos, blockedGate: null };
+}
+
+/** Resolve a tile's content for a player, applying their chosen route variant. */
+function effectiveTile(tile: Tile, player: PlayerState) {
+  if (tile.variants && player.route) {
+    const v = tile.variants[player.route];
+    return {
+      label: v.label,
+      delta: v.delta,
+      note: v.note,
+      achievement: v.achievement,
+    };
+  }
+  return {
+    label: tile.label,
+    delta: tile.delta,
+    note: tile.note,
+    achievement: tile.achievement,
+  };
 }
 
 /** Resolve the landed tile. Returns a PendingChoice if it needs a decision. */
@@ -288,17 +362,20 @@ function resolveLanding(
     case "start":
     case "gate":
       return null;
+    case "branch":
+      return resolveBranch(draft, player);
     case "stat":
     case "mission":
     case "goal": {
-      if (tile.delta) player.stats = applyDelta(player.stats, tile.delta);
-      award(draft, player, tile.achievement);
+      const eff = effectiveTile(tile, player);
+      if (eff.delta) player.stats = applyDelta(player.stats, eff.delta);
+      award(draft, player, eff.achievement);
       addLog(
         draft,
         draft.state.turnCount,
-        `${player.name}: ${tile.note ?? tile.label}` +
-          (tile.delta ? ` (${describeDelta(tile.delta)})` : ""),
-        tile.kind === "goal" ? "good" : deltaTone(tile.delta ?? {}),
+        `${player.name}: ${eff.note ?? eff.label}` +
+          (eff.delta ? ` (${describeDelta(eff.delta)})` : ""),
+        tile.kind === "goal" ? "good" : deltaTone(eff.delta ?? {}),
         player.id,
       );
       if (tile.kind === "mission" || tile.kind === "goal") {
@@ -306,13 +383,14 @@ function resolveLanding(
           scope: "personal",
           playerId: player.id,
           playerName: player.name,
-          title: tile.label,
-          description: tile.note ?? tile.label,
-          delta: tile.delta ?? {},
+          title: eff.label,
+          description: eff.note ?? eff.label,
+          delta: eff.delta ?? {},
           tone: "good",
-          achievement: tile.achievement,
+          achievement: eff.achievement,
         });
       }
+      if (tile.kind === "mission") contributeCoop(draft, 2, player.name);
       if (tile.kind === "goal") {
         player.finished = true;
         addLog(
@@ -330,6 +408,44 @@ function resolveLanding(
     default:
       return null;
   }
+}
+
+/** The Moon-vs-Mars route choice presented at the branch tile. */
+function resolveBranch(
+  draft: Draft,
+  player: PlayerState,
+): GameState["pending"] {
+  if (player.route !== null) return null; // already chosen
+  const card: GameEventCard = {
+    id: "route_choice",
+    scope: "personal",
+    title: "ルート分岐",
+    description: "次に目指すのは月か、火星か。選んだ道で人生が変わる。",
+    choices: [
+      {
+        id: "moon",
+        label: "月ルート",
+        delta: { skill: 3, fuel: 2 },
+        note: "月を目指すことにした",
+        route: "moon",
+      },
+      {
+        id: "mars",
+        label: "火星ルート",
+        delta: { dream: 4, reputation: 2 },
+        note: "火星を目指すことにした",
+        route: "mars",
+      },
+    ],
+  };
+  addLog(
+    draft,
+    draft.state.turnCount,
+    `${player.name} はルート分岐に到達。月か火星かを選ぶ。`,
+    "info",
+    player.id,
+  );
+  return { playerId: player.id, card };
 }
 
 function drawEvent(
@@ -489,6 +605,7 @@ function commit(
     rng: draft.rng,
     lastEvent: draft.lastEvent,
     eventSeq: draft.eventSeq,
+    coop: draft.coop,
     ...patch,
   };
 }
