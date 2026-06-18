@@ -85,7 +85,7 @@ export default function Home() {
       </section>
 
       <p className="text-center text-[10px] leading-relaxed text-slate-500">
-        2〜8人 / 1試合15〜30分
+        1〜8人 / 1試合15〜30分
         <br />
         {online
           ? "オンライン対戦が有効です。コードを共有して招待しよう。"

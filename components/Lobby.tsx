@@ -158,7 +158,7 @@ export function Lobby({
           onClick={() => dispatch({ type: "START", byClientId: clientId })}
           className="rounded border-2 border-neon-lime bg-neon-lime/10 px-4 py-3 text-base font-bold text-neon-lime transition enabled:hover:bg-neon-lime/20 enabled:active:scale-95 disabled:cursor-not-allowed disabled:border-grid disabled:text-slate-600"
         >
-          {startable ? "ゲーム開始" : "全員の準備を待っています (2人以上)"}
+          {startable ? "ゲーム開始" : "全員の準備を待っています"}
         </button>
       ) : (
         <p className="text-center text-[11px] text-slate-500">
