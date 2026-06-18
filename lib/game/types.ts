@@ -134,6 +134,16 @@ export interface PendingChoice {
 
 export type GamePhase = "lobby" | "playing" | "finished";
 
+/** A shared, collaborative objective the whole table fills together. */
+export interface CoopMission {
+  title: string;
+  description: string;
+  progress: number;
+  goal: number;
+  reward: StatDelta;
+  done: boolean;
+}
+
 export interface GameState {
   phase: GamePhase;
   /** Deterministic RNG state (mulberry32). */
@@ -154,6 +164,8 @@ export interface GameState {
   lastEvent: EventFlash | null;
   /** Monotonic counter backing EventFlash.seq. */
   eventSeq: number;
+  /** Shared co-op mission the whole table contributes to (null if none). */
+  coop: CoopMission | null;
   winnerId: string | null;
 }
 

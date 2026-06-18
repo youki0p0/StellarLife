@@ -145,6 +145,16 @@ describe("route branching", () => {
   });
 });
 
+describe("co-op mission", () => {
+  it("accrues shared progress as players cross gates", () => {
+    const end = playToEnd(newGame("coop-seed"));
+    expect(end.coop).not.toBeNull();
+    expect(end.coop!.progress).toBeGreaterThan(0);
+    // Progress never exceeds the goal.
+    expect(end.coop!.progress).toBeLessThanOrEqual(end.coop!.goal);
+  });
+});
+
 describe("cpu helpers", () => {
   it("identifies the active player and cpu turns", () => {
     const g = newGame();

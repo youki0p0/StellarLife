@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Board } from "@/components/Board";
 import { Button, buttonClass } from "@/components/Button";
+import { CoopBar } from "@/components/CoopBar";
 import { Dice } from "@/components/Dice";
 import { EventFlashPopup } from "@/components/EventFlash";
 import { EventModal } from "@/components/EventModal";
@@ -150,6 +151,10 @@ function GameView({
         {players.map((p) => (
           <PlayerChip key={p.id} player={p} active={p.id === activeId} />
         ))}
+      </div>
+
+      <div className="px-3 pb-2">
+        <CoopBar coop={game.coop} />
       </div>
 
       {/* Board: the hero, fills remaining space and scrolls internally */}

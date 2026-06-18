@@ -77,6 +77,14 @@ export function createGame(seats: SeatInput[], seed: string): GameState {
     lastRoll: null,
     lastEvent: null,
     eventSeq: 0,
+    coop: {
+      title: "共同打ち上げ計画",
+      description: "みんなで燃料ゲートを突破し、人類を宇宙へ押し上げよう。",
+      progress: 0,
+      goal: Math.max(4, seats.length * 3),
+      reward: { dream: 6, reputation: 4, fuel: 4, crew: 1 },
+      done: false,
+    },
     winnerId: null,
   };
 }
@@ -115,6 +123,7 @@ interface Draft {
   logSeq: number;
   lastEvent: GameState["lastEvent"];
   eventSeq: number;
+  coop: GameState["coop"];
 }
 
 function startDraft(state: GameState): Draft {
@@ -126,7 +135,45 @@ function startDraft(state: GameState): Draft {
     logSeq: state.logSeq,
     lastEvent: state.lastEvent,
     eventSeq: state.eventSeq,
+    coop: state.coop ? { ...state.coop } : null,
   };
+}
+
+/** Add shared progress to the co-op mission; completing it rewards everyone. */
+function contributeCoop(draft: Draft, amount: number, byName: string) {
+  const coop = draft.coop;
+  if (!coop || coop.done) return;
+  const progress = Math.min(coop.goal, coop.progress + amount);
+  draft.coop = { ...coop, progress };
+  addLog(
+    draft,
+    draft.state.turnCount,
+    `${byName} が共同ミッションに貢献 (${progress}/${coop.goal})。`,
+    "info",
+  );
+  if (progress >= coop.goal) {
+    draft.coop = { ...draft.coop, done: true };
+    for (const id of Object.keys(draft.players)) {
+      const p = draft.players[id];
+      if (p.finished) continue;
+      p.stats = applyDelta(p.stats, coop.reward);
+    }
+    addLog(
+      draft,
+      draft.state.turnCount,
+      `共同ミッション「${coop.title}」を全員で達成! (${describeDelta(coop.reward)})`,
+      "global",
+    );
+    flashEvent(draft, {
+      scope: "global",
+      playerId: null,
+      playerName: "全体",
+      title: `共同ミッション達成: ${coop.title}`,
+      description: "全員の力で打ち上げ計画を成功させた。",
+      delta: coop.reward,
+      tone: "good",
+    });
+  }
 }
 
 function cloneePlayers(
@@ -277,6 +324,8 @@ function move(player: PlayerState, roll: number, draft: Draft): MoveResult {
         "good",
         player.id,
       );
+      // Crossing a gate is a shared step toward the co-op launch programme.
+      contributeCoop(draft, 1, player.name);
     }
     pos = next;
     remaining -= 1;
@@ -341,6 +390,7 @@ function resolveLanding(
           achievement: eff.achievement,
         });
       }
+      if (tile.kind === "mission") contributeCoop(draft, 2, player.name);
       if (tile.kind === "goal") {
         player.finished = true;
         addLog(
@@ -555,6 +605,7 @@ function commit(
     rng: draft.rng,
     lastEvent: draft.lastEvent,
     eventSeq: draft.eventSeq,
+    coop: draft.coop,
     ...patch,
   };
 }
